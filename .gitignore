@@ -1,3 +1,6 @@
 /target
-os_debug.strace
+/trace
+/bootloader
 
+/.idea
+Cargo.lock
