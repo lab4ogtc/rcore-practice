@@ -1,6 +1,6 @@
-/target
 /trace
 /bootloader
-
 /.idea
+
 Cargo.lock
+target
