@@ -1,7 +1,9 @@
 #![allow(unused)]
 
+use core::cell::RefCell;
 use crate::console::print;
 use core::fmt;
+use lazy_static::*;
 
 pub struct LogLevel {
     level: u8,
@@ -35,17 +37,23 @@ pub const TRACE: LogLevel = LogLevel {
     csi_code: 90,
 };
 
-// TODO: Make it thread-safe
-static mut LOG_LEVEL: u8 = INFO.level;
+struct DefaultLogLevel {
+    default_level: RefCell<u8>
+}
+unsafe impl Sync for DefaultLogLevel {}
+
+lazy_static! {
+    static ref LOG_LEVEL: DefaultLogLevel = DefaultLogLevel {
+        default_level: RefCell::new(INFO.level),
+    };
+}
 
 pub fn log_print(level: LogLevel, args: fmt::Arguments) {
-    unsafe {
-        if level.level <= LOG_LEVEL {
-            print(format_args!(
-                "\x1b[{}m[{}] {}\n\x1b[0m",
-                level.csi_code, level.name, args
-            ));
-        }
+    if level.level <= *LOG_LEVEL.default_level.borrow() {
+        print(format_args!(
+            "\x1b[{}m[{}] {}\n\x1b[0m",
+            level.csi_code, level.name, args
+        ));
     }
 }
 

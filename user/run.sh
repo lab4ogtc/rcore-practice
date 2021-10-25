@@ -4,10 +4,15 @@ RUST_TARGET=riscv64gc-unknown-none-elf
 
 cargo build --target $RUST_TARGET --release
 
-for e in `find target/$RUST_TARGET/release/ -maxdepth 1 -type f -executable`; do
-    echo -e "\n"
-    echo "========== Run $(basename $e) =========="
-    qemu-riscv64 $e
-    echo "========== Finish $(basename $e) =========="
-    echo -e "\n"
-done
+find target/$RUST_TARGET/release/ -maxdepth 1 -type f -executable -exec sh -c '
+    echo
+    echo "========== Run $(basename $1) =========="
+    qemu-riscv64 $1
+    echo "========== Finish $(basename $1) =========="
+    echo
+' sh {} \;
+
+find target/$RUST_TARGET/release/ -maxdepth 1 -type f -executable -exec sh -c '
+    rust-objcopy -O binary $1 $1.bin
+    chmod -x $1.bin
+' sh {} \;
