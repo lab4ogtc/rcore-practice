@@ -1,5 +1,5 @@
+use std::fs::{read_dir, File};
 use std::io::{Result, Write};
-use std::fs::{File, read_dir};
 
 fn main() {
     println!("cargo:rerun-if-changed=../user/src/");
@@ -22,12 +22,16 @@ fn insert_app_data() -> Result<()> {
         .collect();
     apps.sort();
 
-    writeln!(f, r#"
+    writeln!(
+        f,
+        r#"
     .align 3
     .section .data
     .global _num_app
 _num_app:
-    .quad {}"#, apps.len())?;
+    .quad {}"#,
+        apps.len()
+    )?;
 
     for i in 0..apps.len() {
         writeln!(f, r#"    .quad app_{}_start"#, i)?;
@@ -36,13 +40,46 @@ _num_app:
 
     for (idx, app) in apps.iter().enumerate() {
         println!("app_{}: {}", idx, app);
-        writeln!(f, r#"
+        writeln!(
+            f,
+            r#"
     .section .data
     .global app_{0}_start
     .global app_{0}_end
 app_{0}_start:
     .incbin "{2}{1}.bin"
-app_{0}_end:"#, idx, app, TARGET_PATH)?;
+app_{0}_end:"#,
+            idx, app, TARGET_PATH
+        )?;
     }
+
+    writeln!(
+        f,
+        r#"
+    .section .data
+    .global _app_names
+_app_names:"#
+    )?;
+    for i in 0..apps.len() {
+        writeln!(f, r#"    .quad app_{}_name"#, i)?;
+    }
+    writeln!(
+        f,
+        r#"    .quad app_name_end
+
+    .section .data"#
+    )?;
+
+    for (idx, app) in apps.iter().enumerate() {
+        writeln!(
+            f,
+            r#"    .global app_{0}_name
+app_{0}_name:
+    .string "{1}""#,
+            idx, app
+        )?;
+    }
+    writeln!(f, r#"app_name_end:"#)?;
+
     Ok(())
 }

@@ -1,15 +1,34 @@
+use crate::batch::check_address_available;
+
 const FD_STDOUT: usize = 1;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
+    trace!(
+        "[kernel] trigger sys_write(fd:{}, buf:{:?}, len:{})",
+        fd,
+        buf,
+        len
+    );
+    let addr_start: usize = buf as usize;
+    let addr_end: usize = addr_start + len;
+    if !check_address_available(addr_start) || !check_address_available(addr_end) {
+        warn!(
+            "[kernel] Invalid address for kernel writing on {:#x}-{:#x}",
+            addr_start, addr_end
+        );
+        return -1;
+    }
+
     match fd {
         FD_STDOUT => {
             let slice = unsafe { core::slice::from_raw_parts(buf, len) };
             let str = core::str::from_utf8(slice).unwrap();
             print!("{}", str);
             len as isize
-        },
+        }
         _ => {
-            panic!("Unsupported fd in sys_write!");
+            error!("Unsupported fd in sys_write!");
+            -1
         }
     }
 }

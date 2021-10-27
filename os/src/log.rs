@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use core::cell::RefCell;
 use crate::console::print;
+use core::cell::RefCell;
 use core::fmt;
 use lazy_static::*;
 
@@ -38,13 +38,13 @@ pub const TRACE: LogLevel = LogLevel {
 };
 
 struct DefaultLogLevel {
-    default_level: RefCell<u8>
+    default_level: RefCell<u8>,
 }
 unsafe impl Sync for DefaultLogLevel {}
 
 lazy_static! {
     static ref LOG_LEVEL: DefaultLogLevel = DefaultLogLevel {
-        default_level: RefCell::new(INFO.level),
+        default_level: RefCell::new(DEBUG.level),
     };
 }
 
@@ -84,7 +84,6 @@ macro_rules! warn {
 #[macro_export]
 macro_rules! error {
     ($fmt: literal $(, $($arg: tt)+)?) => {
-        // $crate::log::log_print($crate::log::ERROR, "test");
         $crate::log::log_print($crate::log::ERROR, format_args!($fmt $(, $($arg)+)?));
     }
 }

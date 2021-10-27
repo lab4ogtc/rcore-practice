@@ -9,6 +9,7 @@ mod syscall;
 mod lang_items;
 
 use syscall::*;
+pub use console::{STDOUT};
 
 pub fn write(fd: usize, buf: &[u8]) -> isize {
     sys_write(fd, buf)

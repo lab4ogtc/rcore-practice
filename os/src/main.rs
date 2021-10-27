@@ -8,11 +8,11 @@
 mod console;
 #[macro_use]
 mod log;
+mod batch;
 mod lang_items;
 mod sbi;
-mod trap;
-mod batch;
 mod syscall;
+mod trap;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
