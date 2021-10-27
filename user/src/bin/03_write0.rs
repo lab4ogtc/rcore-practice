@@ -1,6 +1,6 @@
 #![no_std]
 #![no_main]
-#![feature(llvm_asm)]
+#![feature(asm)]
 
 #[macro_use]
 extern crate user_lib;
@@ -15,7 +15,7 @@ const STACK_SIZE: usize = 0x1000;
 
 unsafe fn r_sp() -> usize {
     let mut sp: usize;
-    llvm_asm!("mv $0, sp": "=r"(sp) ::: "volatile");
+    asm!("mv {}, sp", out(reg) sp);
     sp
 }
 
