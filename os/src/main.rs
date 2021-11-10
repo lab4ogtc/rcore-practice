@@ -8,10 +8,12 @@
 mod console;
 #[macro_use]
 mod log;
-mod batch;
+mod config;
 mod lang_items;
+mod loader;
 mod sbi;
 mod syscall;
+mod task;
 mod trap;
 
 global_asm!(include_str!("entry.asm"));
@@ -30,6 +32,6 @@ pub fn rust_main() {
     clear_bss();
     println!("[kernel] Hello, world!");
     trap::init();
-    batch::init();
-    batch::run_next_app();
+    loader::load_apps();
+    task::run_first_task();
 }

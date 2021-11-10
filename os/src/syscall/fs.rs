@@ -1,4 +1,4 @@
-use crate::batch::check_address_available;
+use crate::task::validate_app_address;
 
 const FD_STDOUT: usize = 1;
 
@@ -11,7 +11,7 @@ pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     );
     let addr_start: usize = buf as usize;
     let addr_end: usize = addr_start + len;
-    if !check_address_available(addr_start) || !check_address_available(addr_end) {
+    if !validate_app_address(addr_start) || !validate_app_address(addr_end) {
         warn!(
             "[kernel] Invalid address for kernel writing on {:#x}-{:#x}",
             addr_start, addr_end
@@ -25,7 +25,7 @@ pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
             let str = core::str::from_utf8(slice).unwrap();
             print!("{}", str);
             len as isize
-        }
+        },
         _ => {
             error!("Unsupported fd in sys_write!");
             -1
