@@ -1,3 +1,4 @@
+const SBI_SET_TIMER: usize = 0;
 const SBI_CONSOLE_PUTCHAR: usize = 1;
 const SBI_SHUTDOWN: usize = 8;
 
@@ -22,4 +23,8 @@ pub fn console_putchar(c: usize) {
 pub fn shutdown() -> ! {
     sbi_call(SBI_SHUTDOWN, 0, 0, 0);
     panic!("It should shutdown!");
+}
+
+pub fn set_timer(timer: usize) {
+    sbi_call(SBI_SET_TIMER, timer, 0, 0);
 }

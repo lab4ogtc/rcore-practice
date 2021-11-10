@@ -2,11 +2,13 @@ mod context;
 
 use riscv::register::{
     mtvec::TrapMode,
-    scause::{self, Exception, Trap},
-    stval, stvec,
+    scause::{self, Exception, Interrupt, Trap},
+    sie, stval, stvec,
 };
 
 use crate::syscall::syscall;
+use crate::task::suspend_current_and_run_next;
+use crate::timer::set_next_trigger;
 
 global_asm!(include_str!("trap.S"));
 
@@ -27,6 +29,10 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
         Trap::Exception(Exception::UserEnvCall) => {
             cx.sepc += 4;
             cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+        }
+        Trap::Interrupt(Interrupt::SupervisorTimer) => {
+            set_next_trigger();
+            suspend_current_and_run_next();
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
             warn!("[kernel] PageFault in application, core dumped.");
@@ -50,3 +56,9 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
 }
 
 pub use context::TrapContext;
+
+pub fn enable_timer_interrupt() {
+    unsafe {
+        sie::set_stimer();
+    }
+}
