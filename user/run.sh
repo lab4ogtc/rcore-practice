@@ -7,9 +7,10 @@ BASE_ADDRESS=0x80400000
 STEP=0x20000
 
 APP_BASE_ADDRESS=$BASE_ADDRESS
+
 for f in src/bin/*.rs; do
   app=$(basename -s .rs "$f")
-  sed -i "/BASE_ADDRESS/{s/0x[0-9]\+/$APP_BASE_ADDRESS/}" $LINK_SCRIPT
+  sed -i "/^BASE_ADDRESS/{s/0x[0-9a-f]\+/$APP_BASE_ADDRESS/}" $LINK_SCRIPT
   APP_BASE_ADDRESS=$(printf "%#x" $((APP_BASE_ADDRESS + STEP)))
 
   cargo build --target $RUST_TARGET --bin "$app" --release

@@ -26,6 +26,14 @@ pub fn get_time() -> isize {
     sys_get_time()
 }
 
+pub fn set_priority(prio: isize) -> isize {
+    sys_set_priority(prio)
+}
+
+pub fn sleep(milliseconds: usize) -> isize {
+    sys_sleep(milliseconds)
+}
+
 fn clear_bss() {
     extern "C" {
         fn start_bss();

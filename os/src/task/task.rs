@@ -11,6 +11,11 @@ pub struct TaskControlBlock {
     pub task_cx_ptr: usize,
     pub task_status: TaskStatus,
     pub task_name: &'static str,
+    pub task_stride: u64,
+    pub task_pass: i64,
+    pub task_awake_time: usize,
+    pub task_elapse_time: usize,
+    pub task_last_switch_time: usize,
 }
 
 impl TaskControlBlock {
