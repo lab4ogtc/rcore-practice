@@ -24,7 +24,7 @@ pub fn sys_set_priority(prio: isize) -> isize {
     if prio < 2 {
         return -1;
     }
-    set_current_task_priority(prio);
+    set_current_task_priority(if prio > (u16::MAX as isize) { u16::MAX } else { prio as u16 });
     prio
 }
 

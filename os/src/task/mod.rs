@@ -8,7 +8,7 @@ use crate::timer::get_time;
 use core::cell::RefCell;
 use lazy_static::*;
 use switch::__switch;
-use task::{TaskControlBlock, TaskStatus};
+use task::{Stride, TaskControlBlock, TaskStatus, BIG_STRIDE};
 
 pub struct TaskManager {
     num_app: usize,
@@ -30,8 +30,8 @@ lazy_static! {
             task_cx_ptr: 0,
             task_status: TaskStatus::UnInit,
             task_name: "",
-            task_stride: 0,
-            task_pass: 16,
+            task_stride: Stride { value: 0 },
+            task_priority: 16,
             task_awake_time: 0,
             task_elapse_time: 0,
             task_last_switch_time: 0,
@@ -110,19 +110,19 @@ impl TaskManager {
 
     fn find_next_task(&self) -> Option<usize> {
         let inner = self.inner.borrow();
-
-        (0..self.num_app)
+        let current = inner.current_task;
+        (current + 1..current + self.num_app + 1)
+            .map(|id| id % self.num_app)
             .filter(|id| {
-                let pid: usize = id % self.num_app;
-                let timestamp = get_time();
-                inner.tasks[pid].task_status == TaskStatus::Ready
-                    && inner.tasks[pid].task_awake_time < timestamp
+                let current_time = get_time();
+                inner.tasks[*id].task_status == TaskStatus::Ready
+                    && inner.tasks[*id].task_awake_time < current_time
             })
             .reduce(|left, right| {
-                if inner.tasks[left].task_stride <= inner.tasks[right].task_stride {
-                    left
-                } else {
+                if inner.tasks[left].task_stride > inner.tasks[right].task_stride {
                     right
+                } else {
+                    left
                 }
             })
     }
@@ -133,16 +133,17 @@ impl TaskManager {
             let current = inner.current_task;
 
             inner.tasks[next].task_status = TaskStatus::Running;
-            inner.tasks[next].task_stride += inner.tasks[next].task_pass as u64;
+            inner.tasks[next].task_stride.value += BIG_STRIDE / inner.tasks[next].task_priority;
             inner.tasks[next].task_last_switch_time = get_time();
             inner.current_task = next;
 
             let current_task_cx_ptr2 = inner.tasks[current].get_task_cx_ptr2();
             let next_task_cx_ptr2 = inner.tasks[next].get_task_cx_ptr2();
             core::mem::drop(inner);
-            trace!(
-                "[kernel] run next task {}",
-                self.inner.borrow().tasks[next].task_name
+            debug!(
+                "[kernel] run next task {} with stride={}",
+                self.inner.borrow().tasks[next].task_name,
+                self.inner.borrow().tasks[next].task_stride.value,
             );
             unsafe {
                 __switch(current_task_cx_ptr2, next_task_cx_ptr2);
@@ -172,10 +173,10 @@ impl TaskManager {
         self.inner.borrow().current_task
     }
 
-    fn update_current_task_priority(&self, prio: isize) {
+    fn update_current_task_priority(&self, prio: u16) {
         let mut inner = self.inner.borrow_mut();
         let current = inner.current_task;
-        inner.tasks[current].task_pass = prio as i64;
+        inner.tasks[current].task_priority = prio;
     }
 
     fn current_sleep_for_ticks(&self, ticks: usize) {
@@ -195,7 +196,7 @@ pub fn exit_current_and_run_next() {
     run_next_task();
 }
 
-pub fn set_current_task_priority(prio: isize) {
+pub fn set_current_task_priority(prio: u16) {
     TASK_MANAGER.update_current_task_priority(prio);
 }
 

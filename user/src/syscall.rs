@@ -30,7 +30,7 @@ pub fn sys_get_time() -> isize {
 }
 
 pub fn sys_set_priority(prio: isize) -> isize {
-    syscall(SYSCALL_SET_PRIORITY, [prio as usize, 0, 0])
+    syscall(SYSCALL_SET_PRIORITY, [usize::from_ne_bytes(prio.to_ne_bytes()), 0, 0])
 }
 
 pub fn sys_sleep(milliseconds: usize) -> isize {
