@@ -12,6 +12,7 @@ const SYSCALL_SET_PRIORITY: usize = 140;
 const SYSCALL_GET_TIME: usize = 169;
 
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    trace!("[kernel] syscall: code={}, args=[{:#x}, {:#x}, {:#x}]", syscall_id, args[0], args[1], args[2]);
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),

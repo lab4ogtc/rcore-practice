@@ -1,5 +1,9 @@
-use core::cmp::Ordering;
-use core::cmp::Ordering::{Greater, Less};
+use core::cmp::Ordering::{self, Greater, Less};
+use crate::config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::mm::address::{PhysPageNum, VirtAddr};
+use crate::mm::memory_set::{KERNEL_SPACE, MapPermission, MemorySet};
+use crate::task::TaskContext;
+use crate::trap::{trap_handler, TrapContext};
 
 pub const BIG_STRIDE: u16 = 65535; // u16::MAX
 const STRIDE_REVERSE: u16 = BIG_STRIDE / 2;
@@ -12,7 +16,6 @@ pub enum TaskStatus {
     Exited,  // 已退出
 }
 
-#[derive(Copy, Clone)]
 pub struct Stride {
     pub value: u16,
 }
@@ -41,10 +44,12 @@ impl PartialEq for Stride {
     }
 }
 
-#[derive(Copy, Clone)]
 pub struct TaskControlBlock {
-    pub task_cx_ptr: usize,
+    pub task_cx: TaskContext,
     pub task_status: TaskStatus,
+    pub memory_set: MemorySet,
+    pub trap_cx_ppn: PhysPageNum,
+    pub base_size: usize,
     pub task_name: &'static str,
     pub task_stride: Stride,
     pub task_priority: u16,
@@ -54,7 +59,51 @@ pub struct TaskControlBlock {
 }
 
 impl TaskControlBlock {
-    pub fn get_task_cx_ptr2(&self) -> *const usize {
-        &self.task_cx_ptr as *const usize
+    pub fn new(elf_data: &[u8], app_id: usize, app_name: &'static str) -> Self {
+        // memory_set with elf program headers/trampoline/trap context/user stack
+        let (memory_set, user_sp, entry_point) = MemorySet::from_elf(elf_data);
+        let trap_cx_ppn = memory_set
+            .translate(VirtAddr::from(TRAP_CONTEXT).into())
+            .unwrap()
+            .ppn();
+        let task_status = TaskStatus::Ready;
+        // map a kernel-stack in kernel space
+        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(app_id);
+        KERNEL_SPACE
+            .exclusive_access()
+            .insert_framed_area(
+                kernel_stack_bottom.into(),
+                kernel_stack_top.into(),
+                MapPermission::R | MapPermission::W,
+            );
+        let task_control_block = Self {
+            task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+            task_status,
+            memory_set,
+            trap_cx_ppn,
+            base_size: user_sp,
+            task_name: app_name,
+            task_stride: Stride { value: 0 },
+            task_priority: 16,
+            task_awake_time: 0,
+            task_elapse_time: 0,
+            task_last_switch_time: 0,
+        };
+        // prepare TrapContext in user space
+        let trap_cx = task_control_block.get_trap_cx();
+        *trap_cx = TrapContext::app_init_context(
+            entry_point,
+            user_sp,
+            KERNEL_SPACE.exclusive_access().token(),
+            kernel_stack_top,
+            trap_handler as usize,
+        );
+        task_control_block
+    }
+    pub fn get_trap_cx(&self) -> &'static mut TrapContext {
+        self.trap_cx_ppn.get_mut()
+    }
+    pub fn get_user_token(&self) -> usize {
+        self.memory_set.token()
     }
 }
