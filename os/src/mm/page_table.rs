@@ -84,6 +84,7 @@ impl PageTable {
                 self.frames.push(frame);
             }
             ppn = pte.ppn();
+            trace!("find_pte_create vpn={:#x}, pte={:#x}, level={}", vpn.0, pte.bits, i);
         }
         result
     }
@@ -113,6 +114,7 @@ impl PageTable {
 
         for i in 0..3 {
             let pte = &ppn.get_pte_array()[idxs[i]];
+            trace!("find_pte vpn={:#x}, pte={:#x}, level={}", vpn.0, pte.bits, i);
             if i == 2 {
                 result = Some(pte);
                 break;

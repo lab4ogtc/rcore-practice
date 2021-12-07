@@ -40,7 +40,7 @@ fn clear_bss() {
 #[no_mangle]
 pub fn rust_main() {
     clear_bss();
-    println!("[kernel] Hello, world!");
+    println!("Hello, world!");
     mm::init();
     mm::memory_set::remap_test();
     trap::init();

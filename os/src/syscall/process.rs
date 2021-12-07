@@ -1,12 +1,9 @@
 use crate::config::{CLOCK_FREQ, MSEC_PER_SEC};
-use crate::task::{
-    current_sleep_for_ticks, exit_current_and_run_next, set_current_task_priority,
-    suspend_current_and_run_next,
-};
+use crate::task::{current_mmap, current_munmap, current_sleep_for_ticks, exit_current_and_run_next, set_current_task_priority, suspend_current_and_run_next};
 use crate::timer::get_time_ms;
 
 pub fn sys_exit(exit_code: i32) -> ! {
-    info!("[kernel] Application exited with code {}", exit_code);
+    info!("Application exited with code {}", exit_code);
     exit_current_and_run_next();
     panic!("Unreachable in sys_exit!");
 }
@@ -32,4 +29,12 @@ pub fn sys_sleep(milliseconds: usize) -> isize {
     let ticks = milliseconds * CLOCK_FREQ / MSEC_PER_SEC;
     current_sleep_for_ticks(ticks);
     0
+}
+
+pub fn sys_mmap(start: usize, len: usize, prot: usize) -> isize {
+    current_mmap(start, len, prot)
+}
+
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    current_munmap(start, len)
 }

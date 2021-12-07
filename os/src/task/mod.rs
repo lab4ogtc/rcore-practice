@@ -9,6 +9,23 @@ use crate::timer::get_time;
 use lazy_static::*;
 use switch::__switch;
 use task::{TaskControlBlock, TaskStatus, BIG_STRIDE};
+use crate::mm::memory_set::MapPermission;
+use crate::sync::UPSafeCell;
+use crate::trap::TrapContext;
+
+bitflags! {
+    struct MapProt: u8 {
+        const R = 1 << 0;
+        const W = 1 << 1;
+        const X = 1 << 2;
+    }
+}
+
+impl From<MapProt> for MapPermission {
+    fn from(p: MapProt) -> Self {
+        MapPermission::from_bits_truncate(p.bits << 1)
+    }
+}
 
 pub struct TaskManager {
     num_app: usize,
@@ -70,11 +87,11 @@ impl TaskManager {
         if inner.tasks[current].task_elapse_time > MAX_APP_LIFETIME_CLOCK {
             inner.tasks[current].task_status = TaskStatus::Exited;
             warn!(
-                "[kernel] Force stop the long lifetime app({}) which maybe dead loop",
+                "Force stop the long lifetime app({}) which maybe dead loop",
                 inner.tasks[current].task_name
             );
             info!(
-                "[kernel] {} executed for {}ms",
+                "{} executed for {}ms",
                 inner.tasks[current].task_name,
                 inner.tasks[current].task_elapse_time / (CLOCK_FREQ / MSEC_PER_SEC)
             );
@@ -90,7 +107,7 @@ impl TaskManager {
             get_time() - inner.tasks[current].task_last_switch_time;
         inner.tasks[current].task_status = TaskStatus::Exited;
         info!(
-            "[kernel] {} executed for {}ms",
+            "{} executed for {}ms",
             inner.tasks[current].task_name,
             inner.tasks[current].task_elapse_time / (CLOCK_FREQ / MSEC_PER_SEC)
         );
@@ -128,7 +145,7 @@ impl TaskManager {
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             trace!(
-                "[kernel] run next task {} with stride={}",
+                "run next task {} with stride={}",
                 inner.tasks[next].task_name,
                 inner.tasks[next].task_stride.value,
             );
@@ -149,12 +166,13 @@ impl TaskManager {
         let next_task_name = inner.tasks[0].task_name;
         core::mem::drop(inner);
         let mut _unused = TaskContext::zero_init();
-        debug!("[kernel] run first task {}", next_task_name);
+        debug!("run first task {}", next_task_name);
         unsafe {
             __switch(&mut _unused as *mut _, next_task_cx_ptr);
         }
     }
 
+    #[allow(unused)]
     fn get_current_app(&self) -> usize {
         self.inner.exclusive_access().current_task
     }
@@ -181,6 +199,47 @@ impl TaskManager {
         let inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].get_trap_cx()
+    }
+
+    fn do_current_mmap(&self, start: usize, len: usize, prot: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        if VirtAddr::from(start).page_offset() != 0 {
+            debug!("mmap failed: unaligned vpn with start va={:#x}", start);
+            return -1;
+        }
+        if prot > MapProt::all().bits as usize {
+            debug!("mmap failed: unrecognized prot={:#x}", prot);
+            return -1;
+        }
+        let perm = MapProt::from_bits(prot as u8).unwrap();
+        if perm.is_empty() {
+            debug!("mmap failed: empty prot={:#x}", prot);
+            return -1;
+        }
+        inner.tasks[current].memory_set.insert_framed_area(start.into(), (start + len).into(), MapPermission::from(perm) | MapPermission::U)
+    }
+
+    fn do_current_munmap(&self, start: usize, len: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        if VirtAddr::from(start).page_offset() != 0 {
+            debug!("munmap failed: unaligned vpn with start va={:#x}", start);
+            return -1;
+        }
+        inner.tasks[current].memory_set.remove_frame_area(start.into(), (start + len).into())
+    }
+
+    fn test_current_page_access(&self, address: usize) {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let pte_or_none = inner.tasks[current].memory_set.translate(VirtAddr::from(address).into());
+        if let Some(pte) = pte_or_none {
+            debug!("Task {} access page {:#x}: ppn={:#x}, valid={}, readable={}, writable={}, executable={}",
+                inner.tasks[current].task_name, address, pte.ppn().0, pte.is_valid(), pte.readable(), pte.writable(), pte.executable());
+        } else {
+            debug!("Task {} cannot access page: {:#x}", inner.tasks[current].task_name, address);
+        }
     }
 }
 
@@ -211,6 +270,18 @@ pub fn current_sleep_for_ticks(ticks: usize) {
     suspend_current_and_run_next();
 }
 
+pub fn current_mmap(start: usize, len: usize, prot: usize) -> isize {
+    TASK_MANAGER.do_current_mmap(start, len, prot)
+}
+
+pub fn current_munmap(start: usize, len: usize) -> isize {
+    TASK_MANAGER.do_current_munmap(start, len)
+}
+
+pub fn test_translate_in_current(address: usize) {
+    TASK_MANAGER.test_current_page_access(address)
+}
+
 pub use context::TaskContext;
-use crate::sync::UPSafeCell;
-use crate::trap::TrapContext;
+use crate::mm::address::VirtAddr;
+

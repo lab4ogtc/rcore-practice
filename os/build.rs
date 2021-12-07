@@ -21,6 +21,7 @@ fn insert_app_data() -> Result<()> {
         })
         .collect();
     apps.sort();
+    // let apps = vec!["ch4_unmap2"];
 
     writeln!(f, r#"
     .align 3

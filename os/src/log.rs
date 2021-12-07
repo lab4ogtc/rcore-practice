@@ -18,12 +18,12 @@ pub const ERROR: LogLevel = LogLevel {
 };
 pub const WARN: LogLevel = LogLevel {
     level: 2,
-    name: "WARN",
+    name: "WARN ",
     csi_code: 93,
 };
 pub const INFO: LogLevel = LogLevel {
     level: 3,
-    name: "INFO",
+    name: "INFO ",
     csi_code: 34,
 };
 pub const DEBUG: LogLevel = LogLevel {
@@ -51,7 +51,7 @@ lazy_static! {
 pub fn log_print(level: LogLevel, args: fmt::Arguments) {
     if level.level <= *LOG_LEVEL.default_level.borrow() {
         print(format_args!(
-            "\x1b[{}m[{}] {}\n\x1b[0m",
+            "\x1b[{}m[{}] [kernel] {}\n\x1b[0m",
             level.csi_code, level.name, args
         ));
     }

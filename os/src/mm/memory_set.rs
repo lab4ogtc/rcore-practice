@@ -1,4 +1,4 @@
-use crate::config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
+use crate::config::{MEMORY_END, PAGE_SIZE, PAGE_SIZE_BITS, TRAMPOLINE, TRAP_CONTEXT, USER_STACK_SIZE};
 use crate::mm::address::{PhysPageNum, StepByOne, VPNRange, VirtAddr, VirtPageNum, PhysAddr};
 use crate::mm::frame_allocator::{frame_alloc, FrameTracker};
 use crate::mm::page_table::{PTEFlags, PageTable, PageTableEntry};
@@ -36,7 +36,7 @@ impl MapArea {
         start_va: VirtAddr,
         end_va: VirtAddr,
         map_type: MapType,
-        map_perm: MapPermission,
+        map_perm: MapPermission
     ) -> Self {
         let start_vpn: VirtPageNum = start_va.floor();
         let end_vpn: VirtPageNum = end_va.ceil();
@@ -52,6 +52,7 @@ impl MapArea {
             self.map_one(page_table, vpn);
         }
     }
+    #[allow(unused)]
     pub fn unmap(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range {
             self.unmap_one(page_table, vpn);
@@ -156,12 +157,44 @@ impl MemorySet {
         start_va: VirtAddr,
         end_va: VirtAddr,
         permission: MapPermission,
-    ) {
+    ) -> isize {
+        trace!("MemorySet insert_framed_area start_va:{:#x}, end_va:{:#x}, permission:{}", start_va.0, end_va.0, permission.bits);
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        if let Some(_area) = self.areas.iter().find(|a| {
+            a.vpn_range.get_end() > start_vpn && a.vpn_range.get_start() < end_vpn
+        }) {
+            warn!("MemorySet area {:?}-{:?} are mapped before mapping", start_vpn, end_vpn);
+            return -1;
+        }
         self.push(
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+        ((end_vpn.0 - start_vpn.0) << PAGE_SIZE_BITS) as isize
     }
+    pub fn remove_frame_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) -> isize {
+        trace!("MemorySet remove_frame_area start_va:{:#x}, end_va:{:#x}", start_va.0, end_va.0);
+        let start_vpn = start_va.floor();
+        let end_vpn = end_va.ceil();
+        let mut unmap_vpn = start_vpn;
+        self.areas.sort_by(|l, r| { l.vpn_range.get_start().cmp(&r.vpn_range.get_start())});
+        for a in &mut self.areas {
+            if a.vpn_range.get_start() >= end_vpn { break; }
+            if a.vpn_range.get_end() <= unmap_vpn { continue; }
+            let limit_vpn = end_vpn.min(a.vpn_range.get_end());
+            for vpn in VPNRange::new(unmap_vpn, limit_vpn) {
+                a.unmap_one(&mut self.page_table, vpn);
+            }
+            unmap_vpn = limit_vpn;
+            if unmap_vpn == end_vpn { break; }
+        }
+        self.areas.retain(|a| { !a.data_frames.is_empty() });
+        if unmap_vpn == end_vpn {
+            ((end_vpn.0 - start_vpn.0) << PAGE_SIZE_BITS) as isize
+        } else { -1 }
+    }
+
     /// Without kernel stacks.
     pub fn new_kernel() -> Self {
         let mut memory_set = Self::new_bare();

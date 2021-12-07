@@ -4,7 +4,7 @@ use crate::task::{current_user_token};
 const FD_STDOUT: usize = 1;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
-    trace!("[kernel] trigger sys_write(fd:{}, buf:{:?}, len:{})", fd, buf, len);
+    trace!("trigger sys_write(fd:{}, buf:{:?}, len:{})", fd, buf, len);
 
     match fd {
         FD_STDOUT => {

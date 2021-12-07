@@ -7,7 +7,7 @@ use riscv::register::{
 };
 
 use crate::syscall::syscall;
-use crate::task::{current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next};
+use crate::task::{current_trap_cx, current_user_token, exit_current_and_run_next, suspend_current_and_run_next, test_translate_in_current};
 use crate::timer::set_next_trigger;
 
 global_asm!(include_str!("trap.S"));
@@ -33,7 +33,7 @@ pub fn trap_handler() -> ! {
     let cx = current_trap_cx();
     let scause = scause::read();
     let stval = stval::read();
-    trace!("[kernel] trap: scause={:?}, stval={:#x}", scause.cause(), stval);
+    trace!("trap: scause={:?}, stval={:#x}", scause.cause(), stval);
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             //println!("start do UserEnvCall");
@@ -44,12 +44,13 @@ pub fn trap_handler() -> ! {
             set_next_trigger();
             suspend_current_and_run_next();
         }
-        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
-            error!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, cx.sepc);
+        Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) | Trap::Exception(Exception::LoadPageFault) => {
+            error!("PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, core dumped.", stval, cx.sepc);
+            test_translate_in_current(stval);
             exit_current_and_run_next();
         }
         Trap::Exception(Exception::IllegalInstruction) => {
-            error!("[kernel] IllegalInstruction in application, core dumped.");
+            error!("IllegalInstruction in application, core dumped.");
             exit_current_and_run_next();
         }
         _ => {
